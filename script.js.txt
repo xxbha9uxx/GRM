@@ -1,0 +1,188 @@
+// script.js
+
+// Replace this with your Google Apps Script Web App URL
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx_LNpfZe9mHjEgLyMQYueXPNyla2C6BEDRQu7naq2fcA9Z8FzsJums3OcROC4jTNcG/exec';
+
+// Tab Navigation
+function showTab(tabName) {
+    // Hide all tab contents
+    const tabContents = document.querySelectorAll('.tab-content');
+    tabContents.forEach(content => content.classList.remove('active'));
+    
+    // Remove active class from all tab buttons
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    tabButtons.forEach(button => button.classList.remove('active'));
+    
+    // Show selected tab content
+    document.getElementById(tabName).classList.add('active');
+    
+    // Add active class to clicked button
+    event.target.classList.add('active');
+}
+
+// Generate Unique Grievance ID
+function generateGrievanceId() {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 1000);
+    return `GRV${timestamp}${random}`;
+}
+
+// Form Submission
+document.getElementById('grievanceForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    // Show loading state
+    const submitBtn = document.querySelector('.submit-btn');
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="loading"></span> Submitting...';
+    
+    try {
+        // Generate unique grievance ID
+        const grievanceId = generateGrievanceId();
+        
+        // Get form data
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData);
+        
+        // Add grievance ID and timestamp
+        data.grievanceId = grievanceId;
+        data.submittedAt = new Date().toLocaleString();
+        data.status = 'Pending';
+        data.adminResponse = 'No response yet';
+        
+        // Send to Google Sheets
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+        
+        // Show success message
+        document.getElementById('grievanceForm').style.display = 'none';
+        document.getElementById('successMessage').style.display = 'block';
+        document.getElementById('grievanceId').textContent = grievanceId;
+        
+        // Reset form
+        this.reset();
+        
+    } catch (error) {
+        console.error('Error submitting grievance:', error);
+        alert('Error submitting grievance. Please try again.');
+    } finally {
+        // Reset button state
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+    }
+});
+
+// Track Grievance
+async function trackGrievance() {
+    const trackingId = document.getElementById('trackingId').value.trim();
+    
+    if (!trackingId) {
+        alert('Please enter a grievance ID');
+        return;
+    }
+    
+    // Show loading state
+    const trackBtn = document.querySelector('.track-btn');
+    const originalText = trackBtn.textContent;
+    trackBtn.disabled = true;
+    trackBtn.innerHTML = '<span class="loading"></span> Tracking...';
+    
+    // Hide previous results
+    document.getElementById('trackingResults').style.display = 'none';
+    document.getElementById('errorMessage').style.display = 'none';
+    
+    try {
+        // Fetch data from Google Sheets
+        const response = await fetch(`${GOOGLE_SCRIPT_URL}?id=${trackingId}&action=track`);
+        
+        if (response.ok) {
+            const data = await response.json();
+            
+            if (data.found) {
+                // Display tracking results
+                document.getElementById('displayGrievanceId').textContent = data.grievanceId;
+                document.getElementById('displayStatus').textContent = data.status;
+                document.getElementById('displayStatus').className = `status-badge ${data.status.toLowerCase().replace(' ', '-')}`;
+                document.getElementById('displayDateTime').textContent = data.submittedAt;
+                document.getElementById('displayResponse').textContent = data.adminResponse || 'No response yet';
+                
+                document.getElementById('trackingResults').style.display = 'block';
+            } else {
+                document.getElementById('errorMessage').style.display = 'block';
+            }
+        } else {
+            throw new Error('Failed to fetch data');
+        }
+        
+    } catch (error) {
+        console.error('Error tracking grievance:', error);
+        
+        // For demo purposes, show mock data if the Google Script URL is not set
+        if (GOOGLE_SCRIPT_URL === 'YOUR_GOOGLE_SCRIPT_URL_HERE') {
+            showMockTrackingData(trackingId);
+        } else {
+            document.getElementById('errorMessage').style.display = 'block';
+        }
+    } finally {
+        // Reset button state
+        trackBtn.disabled = false;
+        trackBtn.textContent = originalText;
+    }
+}
+
+// Mock data for demonstration (remove this in production)
+function showMockTrackingData(trackingId) {
+    const mockData = {
+        grievanceId: trackingId,
+        status: 'In Review',
+        submittedAt: '2024-01-15 10:30:00',
+        adminResponse: 'Your grievance has been received and is being reviewed by the concerned department.'
+    };
+    
+    document.getElementById('displayGrievanceId').textContent = mockData.grievanceId;
+    document.getElementById('displayStatus').textContent = mockData.status;
+    document.getElementById('displayStatus').className = `status-badge ${mockData.status.toLowerCase().replace(' ', '-')}`;
+    document.getElementById('displayDateTime').textContent = mockData.submittedAt;
+    document.getElementById('displayResponse').textContent = mockData.adminResponse;
+    
+    document.getElementById('trackingResults').style.display = 'block';
+}
+
+// Allow Enter key to trigger tracking
+document.getElementById('trackingId').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        trackGrievance();
+    }
+});
+
+// Form validation
+document.getElementById('mobile').addEventListener('input', function(e) {
+    const value = e.target.value;
+    if (value.length > 10) {
+        e.target.value = value.slice(0, 10);
+    }
+});
+
+// Reset form when switching tabs
+document.addEventListener('DOMContentLoaded', function() {
+    // Reset to submission form when page loads
+    document.getElementById('grievanceForm').style.display = 'block';
+    document.getElementById('successMessage').style.display = 'none';
+});
+
+// Reset success message when switching to submission tab
+function resetSubmissionForm() {
+    document.getElementById('grievanceForm').style.display = 'block';
+    document.getElementById('successMessage').style.display = 'none';
+    document.getElementById('grievanceForm').reset();
+}
+
+// Add click event to submission tab to reset form
+document.querySelector('.tab-btn').addEventListener('click', resetSubmissionForm);
